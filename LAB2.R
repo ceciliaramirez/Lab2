@@ -47,6 +47,12 @@ for(i in 1:length(tk))
 
 names(Datos) <- tk
 
+#Reordenar precios en base a fechas
+
+for (i in 1: length(tk)){
+  Datos[[i]] <- Datos[[i]][order(Datos[[i]][,1]),]
+}
+
 longitudes<-c()
 
 for (i in 1: length(Datos)){
@@ -109,4 +115,66 @@ Regla2_P <- 0.25   # Se utiliza el P% del L capital restante en cada compra
 Regla3_W <- tk_completos # Se realiza la misma estrategia para todos los activos en el portafolio
 Regla4_C <- 0.0025 # Comisiones pagadas por compra
 Regla5_K <- 100000 # Capital inicial
+
+#####
+#Calcular los titulos de posicion inicial
+Historico$Titulos[1] <- (Regla5_K*Regla1_I)%/%Historico$Precio[1]
+
+#Se calculan comisiones iniciales
+Historico$Comisiones[1] <- Historico$Titulos[1]*Historico$Precio[1]*Regla4_C
+
+#Calcular el Balance
+Historico$Balance[1] <- Historico$Titulos[1]*Historico$Precio[1]
+
+#Todo remanente se deja registrado en la cuenta de efectivo
+Historico$Capital[1] <- Regla5_K-Historico$Balance[1]-Historico$Comisiones[1]
+
+#Iniciamos con una postura de mantener
+Historico$Operacion[1] <- "Posicion Inicial"
+
+#El rendimiento de capital en el tiempo 1 es 0
+Historico$R_Cuenta[1] <- 0
+
+#Mensaje inicial
+Historico$Mensaje[1] <- "Inicializacion de cartera"
+
+#Calcular R_Precio
+Historico$R_Precio <- round(c(0, diff(log(Historico$Precio))),4)
+
+#Calcular R_Activo
+for(i in 1:length(Historico$Date)){
+  Historico$R_Activo[i] <- round((Historico$Precio[i]/Historico$Precio[1])-1,2)
+}
+
+
+
+for(i in 2:length(Historico$Date)){
+  
+  if(Historico$R_Precio[i] <= Regla0_R){ # Generar Senal
+    
+    # Establecer capital actual, inicialmente, igual al capital anterior
+    Historico$Capital[i] <- Historico$Capital[i-1]
+    
+    if(Historico$Capital[i] > 0){ # Si hay capital
+      
+      if(Historico$Capital[i]*Regla2_P > Historico$Precio[i]){ # Si Capital minimo
+        
+        Historico$Operacion[i] <- "Compra"
+        Historico$Titulos[i]   <- (Historico$Capital[i]*Regla2_P)%/%Historico$Precio[i]
+        
+        compra <- Historico$Precio[i]*Historico$Titulos[i]  
+        Historico$Comisiones[i] <- compra*Regla4_C
+        
+        Historico$Titulos_a[i] <- Historico$Titulos[i-1]+Historico$Titulos[i]
+        
+      }
+    }
+    else { # No hubo capital
+      
+    }
+    
+  }
+  else { # Sin senal
+  }
+}
 
