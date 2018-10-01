@@ -92,16 +92,17 @@ Historico <- data.frame("Date"= row.names(Precios),
                         "R_Precio" = 0,
                         "R_Activo" = 0,
                         "R_Cuenta" = 0,
-                        "Capital" = 0, "Balance" = 0, "Titulos" = 0,
+                        "Capital" = 0,"Flotante" = 0, "Balance" = 0, "Titulos" = 0,
                         "Titulos_a" = 0,
-                        "Operacion" = NA, "Comisiones"= 0, "Mensaje" = NA)
+                        "Operacion" = NA, "Comisiones"= 0, "Comisiones_a"= 0, "Mensaje" = NA)
 
 #Date       : Fecha (proviene desde los precios que bajaron)
 #Precio     : Precio individual del activo
 #R_Precio   : Rendimiento diario del precio (dia a dia)
 #R_Activo   : Rendimiento acumulado del precio (Cada dia respecto al precio inicial)
 #Capital    : El dinero no invertido (equivalente a efectivo)
-#Balance    : El valor del portafolio (precio diario X titulos)
+#Flotante   : El valor de la posicion(precio diario x titulos acumulados)
+#Balance    : Capital + Flotante
 #R_Cuenta   : Balance + Capital (cada dia respecto al capital inicial)
 #Titulos    : Acciones que se tienen
 #Titulos_a  : Titulos acumulados
@@ -120,17 +121,26 @@ Regla5_K <- 100000 # Capital inicial
 #Calcular los titulos de posicion inicial
 Historico$Titulos[1] <- (Regla5_K*Regla1_I)%/%Historico$Precio[1]
 
+#Calcular los titulos acumulados
+Historico$Titulos_a[1] <- Historico$Titulos[1]
+
 #Se calculan comisiones iniciales
 Historico$Comisiones[1] <- Historico$Titulos[1]*Historico$Precio[1]*Regla4_C
 
-#Calcular el Balance
-Historico$Balance[1] <- Historico$Titulos[1]*Historico$Precio[1]
+#Calcular las comisiones acumulados
+Historico$Comisiones_a[1] <- Historico$Comisiones[1]
+
+#Calcular flotante
+Historico$Flotante[1]<- Historico$Titulos_a[1]*Historico$Precio[1]
 
 #Todo remanente se deja registrado en la cuenta de efectivo
-Historico$Capital[1] <- Regla5_K-Historico$Balance[1]-Historico$Comisiones[1]
+Historico$Capital[1] <- Regla5_K-Historico$Flotante[1]-Historico$Comisiones[1]
+
+#Calcular el Balance
+Historico$Balance[1] <- Historico$Flotante[1]+ Historico$Capital[1]
 
 #Iniciamos con una postura de mantener
-Historico$Operacion[1] <- "Posicion Inicial"
+Historico$Operacion[1] <- 1 #"Posicion Inicial"
 
 #El rendimiento de capital en el tiempo 1 es 0
 Historico$R_Cuenta[1] <- 0
@@ -142,39 +152,64 @@ Historico$Mensaje[1] <- "Inicializacion de cartera"
 Historico$R_Precio <- round(c(0, diff(log(Historico$Precio))),4)
 
 #Calcular R_Activo
+
+PosturaInicial <- Regla5_K%/%Historico$Precio[1]
+
 for(i in 1:length(Historico$Date)){
-  Historico$R_Activo[i] <- round((Historico$Precio[i]/Historico$Precio[1])-1,2)
+  Historico$R_Activo[i] <- (PosturaInicial*Historico$Precio[i])/(PosturaInicial*Historico$Precio[1])-1
 }
 
 
 
 for(i in 2:length(Historico$Date)){
   
-  if(Historico$R_Precio[i] <= Regla0_R){ # Generar Senal
+  if(Historico$R_Precio[i] <= Regla0_R & Historico$R_Precio[i-1] <= Regla0_R){ # Generar Senal
     
-    # Establecer capital actual, inicialmente, igual al capital anterior
-    Historico$Capital[i] <- Historico$Capital[i-1]
-    
-    if(Historico$Capital[i] > 0){ # Si hay capital
+   
+    if(Historico$Capital[i-1] > 0){ # Si hay capital
       
-      if(Historico$Capital[i]*Regla2_P > Historico$Precio[i]){ # Si Capital minimo
+      if(Historico$Capital[i-1]*Regla2_P > Historico$Precio[i]){ # Si Capital minimo
         
-        Historico$Operacion[i] <- "Compra"
-        Historico$Titulos[i]   <- (Historico$Capital[i]*Regla2_P)%/%Historico$Precio[i]
+        Historico$Operacion[i] <- 1
         
-        compra <- Historico$Precio[i]*Historico$Titulos[i]  
-        Historico$Comisiones[i] <- compra*Regla4_C
+        Historico$Titulos[i]   <- (Historico$Capital[i-1]*Regla2_P)%/%Historico$Precio[i]
         
-        Historico$Titulos_a[i] <- Historico$Titulos[i-1]+Historico$Titulos[i]
+        Historico$Titulos_a[i] <- Historico$Titulos_a[i-1]+Historico$Titulos[i]
         
+        Historico$Comisiones[i] <- Historico$Precio[i]*Historico$Titulos[i]*Regla4_C
+        
+        Historico$Comisiones_a[i] <- Historico$Comisiones_a[i-1] + Historico$Comisiones[i]
+        
+        Historico$Flotante[i]<- Historico$Precio[i]*Historico$Titulos_a[i]
+        
+        Historico$Capital[i] <- Historico$Capital[i-1] - Historico$Titulos[i]*Historico$Precio[i] -Historico$Comisiones ###
+        
+        Historico$Balance [i]<- Historico$Capital[i] + Historico$Flotante[i]
+        
+        Historico$R_Cuenta[i] <- Historico$Balance[i]/Regla5_K -1
+        
+        Historico$Mensaje[i] <- "Señal de compra ejecutada"
       }
-    }
+    } ##
     else { # No hubo capital
-      
+      Historico$Mensaje[i] <- "No hay capital para la operación"
+      Historico$Operacion[i] <- 0
+      Historico$Titulos [i] <- 0
+      Historico$Comisiones[i] <- 0
+      Historico$Comisiones_a[i] <- Historico$Comisiones_a[i-1]
+      Historico$Titulos_a[i] <- Historico$Titulos_a[i-1]
+      Historico$Flotante[i] <- Historico$Titulos_a[i]*Historico$Precio[i]
+      Historico$Capital[i] <- Historico$Capital[i-1]
+      Historico$Balance[i] <- Historico$Flotante[i] + Historico$Capital[i]
+      Historico$R_Cuenta[i] <- Historico$Balance[i]/Regla5_K - 1
     }
     
   }
   else { # Sin senal
   }
 }
+
+###### plotly
+
+
 
