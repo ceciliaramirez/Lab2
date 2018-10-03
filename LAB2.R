@@ -163,7 +163,7 @@ for(i in 1:length(Historico$Date)){
 
 for(i in 2:length(Historico$Date)){
   
-  if(Historico$R_Precio[i] <= Regla0_R & Historico$R_Precio[i-1] <= Regla0_R){ # Generar Senal
+  if(Historico$R_Precio[i]  <= Regla0_R){ # Generar Senal
     
    
     if(Historico$Capital[i-1] > 0){ # Si hay capital
@@ -191,7 +191,7 @@ for(i in 2:length(Historico$Date)){
         Historico$Mensaje[i] <- "Señal de compra ejecutada"
       }
     } ##
-    else { # No hubo capital
+    else { # No hubo capital minimo
       Historico$Mensaje[i] <- "No hay capital para la operación"
       Historico$Operacion[i] <- 0
       Historico$Titulos [i] <- 0
@@ -206,10 +206,28 @@ for(i in 2:length(Historico$Date)){
     
   }
   else { # Sin senal
+    Historico$Mensaje[i] <- "No hay señal"
+    Historico$Operacion[i] <- 0
+    Historico$Titulos [i] <- 0
+    Historico$Comisiones[i] <- 0
+    Historico$Comisiones_a[i] <- Historico$Comisiones_a[i-1]
+    Historico$Titulos_a[i] <- Historico$Titulos_a[i-1]
+    Historico$Flotante[i] <- Historico$Titulos_a[i]*Historico$Precio[i]
+    Historico$Capital[i] <- Historico$Capital[i-1]
+    Historico$Balance[i] <- Historico$Flotante[i] + Historico$Capital[i]
+    Historico$R_Cuenta[i] <- Historico$Balance[i]/Regla5_K - 1
   }
 }
 
 ###### plotly
-
+plot_ly(Historico) %>%
+  add_trace(x = ~Date, y = ~round(R_Activo,4), type = 'scatter', mode = 'lines', name = 'Activo',
+            line = list(color = 'red')) %>%
+  add_trace(x = ~Date, y = ~round(R_Cuenta,4), type = 'scatter', mode = 'lines', name = 'Cuenta',
+            line = list(color = 'blue')) %>% 
+  layout(title = "Rend del activo VS Rend de la cuenta",
+         xaxis = list(title = "Fechas", showgrid = T),
+         yaxis = list(title = "Rendimiento"), 
+         legend = list(orientation = 'h', y = -0.25, x = 0.5))
 
 
